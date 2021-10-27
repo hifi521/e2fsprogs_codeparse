@@ -1,0 +1,30 @@
+PRS(argc, argv, &ctx);
+	while (getopt(argc, argv, "panyrcC:B:dE:fvtFVM:b:I:j:P:l:L:N:SsDkz:") != EOF) // 解析入参并给相对应的位赋值
+	profile_init(config_fn, &ctx->profile); // 从/etc/mke2fs.conf中读取属性
+check_mount(ctx);
+	ext2fs_check_if_mounted(ctx->filesystem_name,&ctx->mount_flags); // 判断入参的blockdev是否被挂载
+	ask_yn(ctx, _("Do you really want to continue"), 0); // 如果blockdev被挂载,询问是否继续进行e2fsck
+io_ptr = unix_io_manager; // 其中包含了对块设备的读写函数
+try_open_fs(ctx, flags, io_ptr, &fs);
+	ext2fs_open2(ctx->filesystem_name);
+		manager->open();
+		manager->read_blk();
+		io_channel_read_blk(fs->io, superblock, -SUPERBLOCK_SIZE,fs->super); // 读出超级块信息
+		ext2fs_verify_csum_type(fs, fs->super); // 校验超级块信息
+		ext2fs_superblock_csum_verify(fs, fs->super); // 校验超级块信息
+		EXT2_BLOCK_SIZE(fs->super);
+		EXT2_INODE_SIZE(fs->super);
+get_backup_sb(); // 读出备用sb位置
+	try_open_fs();
+e2fsck_check_ext3_journal(ctx); // 日志检测
+if (ext2fs_has_feature_journal_needs_recovery(sb)) // 判断是否需要日志恢复
+	e2fsck_run_ext3_journal(ctx) // 日志恢复
+	goto restart; // 返回try_open_fs()
+ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，将他在内存中标记为脏页，后面写回
+check_super_block(ctx); // 检查sb
+check_if_skip(ctx); // 判断是否要跳过后面的pass阶段
+e2fsck_run(ctx)；// 进行5个pass的检查
+	for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
+		e2fsck_pass(ctx);
+if (fs->flags & EXT2_FLAG_DIRTY)
+	ext2fs_flush(ctx->fs); // 数据落盘
