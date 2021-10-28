@@ -8,17 +8,20 @@ io_ptr = unix_io_manager; // 其中包含了对块设备的读写函数
 try_open_fs(ctx, flags, io_ptr, &fs);
 	ext2fs_open2(ctx->filesystem_name);
 		manager->open();
-		manager->read_blk();
 		io_channel_read_blk(fs->io, superblock, -SUPERBLOCK_SIZE,fs->super); // 读出超级块信息
-		ext2fs_verify_csum_type(fs, fs->super); // 校验超级块信息
-		ext2fs_superblock_csum_verify(fs, fs->super); // 校验超级块信息
+			manager->read_blk();
+		ext2fs_superblock_csum_verify(fs, fs->super); // 粗略校验超级块合法性
 		EXT2_BLOCK_SIZE(fs->super);
 		EXT2_INODE_SIZE(fs->super);
 get_backup_sb(); // 读出备用sb位置
 	try_open_fs();
 e2fsck_check_ext3_journal(ctx); // 日志检测
 if (ext2fs_has_feature_journal_needs_recovery(sb)) // 判断是否需要日志恢复
-	e2fsck_run_ext3_journal(ctx) // 日志恢复
+	e2fsck_run_ext3_journal(ctx); // 日志恢复
+		recover_ext3_journal(ctx);
+			e2fsck_get_journal();
+			e2fsck_journal_load();
+			journal_recover(); // 重放日志
 	goto restart; // 返回try_open_fs()
 ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，将他在内存中标记为脏页，后面写回
 check_super_block(ctx); // 检查sb
