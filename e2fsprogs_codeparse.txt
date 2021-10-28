@@ -32,11 +32,16 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 	for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
 		e2fsck_pass(ctx);
 	e2fsck_pass1
+		ext2fs_open_inode_scan(fs, ctx->inode_buffer_blocks,&scan); // 初始化scan的值用于后面便利整个文件系统的inode
+		while (1) {
+			ext2fs_get_next_inode_full(scan, &ino,inode, inode_size); // 便利整个文件系统读出下一个inode，放在inode指针中
+		}
 	e2fsck_pass1e
 	e2fsck_pass2
 	e2fsck_pass3
 	e2fsck_pass4
 	e2fsck_pass5
-	
+		check_block_bitmaps(ctx); // 使用pass1便利生成的inode_bit_map来校验文件系统中的inode_bit_map
+		check_inode_bitmaps(ctx);
 if (fs->flags & EXT2_FLAG_DIRTY)
 	ext2fs_flush(ctx->fs); // 数据落盘
