@@ -10,7 +10,9 @@ try_open_fs(ctx, flags, io_ptr, &fs);
 		manager->open();
 		io_channel_read_blk(fs->io, superblock, -SUPERBLOCK_SIZE,fs->super); // 读出超级块信息
 			manager->read_blk();
-		ext2fs_superblock_csum_verify(fs, fs->super); // 粗略校验超级块合法性
+		ext2fs_superblock_csum_verify(fs, fs->super); // 对超级块进行超级块csum校验，并和sb中的s_checksum进行对比
+			calculated = ext2fs_superblock_csum(); // 计算出sb的csum的值
+			return ext2fs_le32_to_cpu(sb->s_checksum) == calculated; // 对比sb中的csum的值和计算出的值
 		EXT2_BLOCK_SIZE(fs->super);
 		EXT2_INODE_SIZE(fs->super);
 get_backup_sb(); // 读出备用sb位置
@@ -23,11 +25,18 @@ if (ext2fs_has_feature_journal_needs_recovery(sb)) // 判断是否需要日志�
 			e2fsck_journal_load();
 			journal_recover(); // 重放日志
 	goto restart; // 返回try_open_fs()
-ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，将他在内存中标记为脏页，后面写回
+ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，把sb置脏
 check_super_block(ctx); // 检查sb
 check_if_skip(ctx); // 判断是否要跳过后面的pass阶段
 e2fsck_run(ctx)；// 进行5个pass的检查
 	for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
 		e2fsck_pass(ctx);
+	e2fsck_pass1
+	e2fsck_pass1e
+	e2fsck_pass2
+	e2fsck_pass3
+	e2fsck_pass4
+	e2fsck_pass5
+	
 if (fs->flags & EXT2_FLAG_DIRTY)
 	ext2fs_flush(ctx->fs); // 数据落盘
