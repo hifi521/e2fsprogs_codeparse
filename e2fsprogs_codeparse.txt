@@ -39,11 +39,14 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 		ext2fs_open_inode_scan(fs, ctx->inode_buffer_blocks,&scan); // 初始化scan的值用于后面便利整个文件系统的inode
 		while (1) {
 			ext2fs_get_next_inode_full(scan, &ino,inode, inode_size); // 便利整个文件系统读出下一个inode，放在inode指针中
-			上面函数将便利到的下一个inode保存inode中，如果失败将返回错误，并将对应的inode_bb_map置一
-			接下来对每个inode进行mode字段进行检测合法性，例如：
-				硬链接为0，删除时间为0，则修复删除时间为现在；
-				硬链接不为0，删除时间不为0，则修复删除时间为0；
-			并把已经使用的inode保存再inode_used_map中
+			/****
+			* 上面函数将便利到的下一个inode保存inode中，如果失败将返回错误，并将对应的inode_bb_map置一
+			* 接下来对每个inode进行mode字段进行检测合法性,进行简单修复，例如：
+			*	硬链接为0，删除时间为0，则修复删除时间为现在；
+			* 	硬链接不为0，删除时间不为0，则修复删除时间为0；
+			* 并把已经使用的inode保存再inode_used_map中
+			****/
+			mark_inode_bad(); // 如果遇到复杂错误的inode_table则将他记录在inode_bad_map中
 			check_blocks(); // 在每个inode上调用这个函数，以解释这个inode使用过的所有块
 				check_blocks_extents();
 					scan_extent_node();
@@ -63,6 +66,13 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 		}
 	e2fsck_pass1e：
 	e2fsck_pass2：
+		ext2fs_dblist_iterate2(check_dir_block, &cd);
+			check_dir_block();
+				do {
+					e2fsck_process_bad_inode(); // 如果这个inode在inode_bit_map中被置一，则处理这个badinode
+					ext2fs_get_rec_len(fs, dirent, &rec_len); // 获得这个ext2_dir_entry结构体的长度
+					offset += rec_len；
+				while (offset < max_block_size); // 便利这一个dirblock中的所有文件
 	e2fsck_pass3：
 	e2fsck_pass4：
 	e2fsck_pass5：
