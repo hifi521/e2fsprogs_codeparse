@@ -74,8 +74,27 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 					offset += rec_len；
 				while (offset < max_block_size); // 便利这一个dirblock中的所有文件
 	e2fsck_pass3：
+		e2fsck_allocate_inode_bitmap(&inode_done_map); // 创建一个inode_done_map用来记录哪些节点已经被检测
+		check_root(ctx); // 检查根节点,如果没有就创建一个
+		ext2fs_mark_inode_bitmap2(inode_done_map, EXT2_ROOT_INO); // 标记根节点为done状态
+		while ((dir = e2fsck_dir_info_iter(ctx, iter)) != 0) { // 具体如何迭代
+			check_directory(ctx, dir->ino, &pctx)
+				while (1) {
+					ext2fs_mark_inode_bitmap2(inode_done_map, ino); // 标记这个inode已经处理过
+					e2fsck_dir_info_get_parent(ctx, ino, &parent); // 获得这个inode节点的parent
+					if (!parent || ext2fs_test_inode_bitmap2(inode_loop_detect,parent)) { // 如果没有父节点或者之前已经出现了第二次
+						e2fsck_reconnect_file(ctx, pctx->ino); // 把这个目录挂在/lost+found目录树下
+					}
+				}
+				e2fsck_dir_info_get_dotdot(ctx, dir, &pctx->ino2); // 读出上级节点
+				e2fsck_dir_info_get_parent(ctx, dir, &pctx->dir); // 读出父节点
+				if (pctx->ino2 != pctx->dir) { // 如果两个节点不一样进行处理
+					if (fix_problem(ctx, PR_3_BAD_DOT_DOT, pctx))
+						fix_dotdot(ctx, dir, pctx->dir);
+				}
+		}
 	e2fsck_pass4：
-		for (i=1;i<=super->s_inodes_count;i++) {
+		for (i=1;i<=super->s_inodes_count;i++) { // 扫描所有的inode
 			ext2fs_icount_fetch(ctx->inode_count, i, &link_counted);
 			if (link_counted == 0) {
 				disconnect_inode(ctx, i, inode);
