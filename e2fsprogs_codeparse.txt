@@ -15,6 +15,7 @@ try_open_fs(ctx, flags, io_ptr, &fs);
 			return ext2fs_le32_to_cpu(sb->s_checksum) == calculated; // 对比sb中的csum的值和计算出的值
 		EXT2_BLOCK_SIZE(fs->super);
 		EXT2_INODE_SIZE(fs->super);
+		fs->priv_data = ctx;
 get_backup_sb(); // 读出备用sb位置
 	try_open_fs();
 e2fsck_check_ext3_journal(ctx); // 日志检测
@@ -31,16 +32,40 @@ check_if_skip(ctx); // 判断是否要跳过后面的pass阶段
 e2fsck_run(ctx)；// 进行5个pass的检查
 	for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
 		e2fsck_pass(ctx);
-	e2fsck_pass1
+	e2fsck_pass1：
+		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_used_map); // 创建inode_bit_map记录inode_used_map
+		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_dir_map); // 创建inode_bit_map记录inode_dir_map
+		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_reg_map); // 创建inode_bit_map记录inode_reg_map
 		ext2fs_open_inode_scan(fs, ctx->inode_buffer_blocks,&scan); // 初始化scan的值用于后面便利整个文件系统的inode
 		while (1) {
 			ext2fs_get_next_inode_full(scan, &ino,inode, inode_size); // 便利整个文件系统读出下一个inode，放在inode指针中
+			上面函数将便利到的下一个inode保存inode中，如果失败将返回错误，并将对应的inode_bb_map置一
+			接下来对每个inode进行mode字段进行检测合法性，例如：
+				硬链接为0，删除时间为0，则修复删除时间为现在；
+				硬链接不为0，删除时间不为0，则修复删除时间为0；
+			并把已经使用的inode保存再inode_used_map中
+			check_blocks(); // 在每个inode上调用这个函数，以解释这个inode使用过的所有块
+				check_blocks_extents();
+					scan_extent_node();
+						mark_blocks_used();
+							mark_block_used();
+								ext2fs_fast_mark_block_bitmap2(ctx->block_dup_map, block); // 将被重复索引的块在block_dup_map中的对应位置一
+			if (ctx->block_dup_map) { // 如果被多个个inode使用的位图非空
+				e2fsck_pass1_dupblocks(); // 调用处理重复块的主程序
+					pass1b(); // 扫描所有inode的数据块，生成一个完整的记录被重复使用的block和与之对应的inode的链表。
+					pass1c(); // 扫描整个文件系统的目录树结构，确定这些inode的父目录。
+					pass1d(); // 修复阶段
+						// 根据extended_opts传入的扩展选项判断是拷贝还是删除block
+						clone_file();
+							clone_file_block();
+						delete_file();
+							delete_file_block();
 		}
-	e2fsck_pass1e
-	e2fsck_pass2
-	e2fsck_pass3
-	e2fsck_pass4
-	e2fsck_pass5
+	e2fsck_pass1e：
+	e2fsck_pass2：
+	e2fsck_pass3：
+	e2fsck_pass4：
+	e2fsck_pass5：
 		check_block_bitmaps(ctx); // 使用pass1便利生成的inode_bit_map来校验文件系统中的inode_bit_map
 		check_inode_bitmaps(ctx);
 if (fs->flags & EXT2_FLAG_DIRTY)
