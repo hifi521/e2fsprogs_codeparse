@@ -75,6 +75,14 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 				while (offset < max_block_size); // 便利这一个dirblock中的所有文件
 	e2fsck_pass3：
 	e2fsck_pass4：
+		for (i=1;i<=super->s_inodes_count;i++) {
+			ext2fs_icount_fetch(ctx->inode_count, i, &link_counted);
+			if (link_counted == 0) {
+				disconnect_inode(ctx, i, inode);
+					e2fsck_reconnect_file(ctx, i);
+						ext2fs_link(fs, ctx->lost_and_found, name,ino, file_type); // 把硬链接为0的文件挂在/lost+found目录树下
+			}
+		}
 	e2fsck_pass5：
 		check_block_bitmaps(ctx); // 使用pass1便利生成的inode_bit_map来校验文件系统中的inode_bit_map
 		check_inode_bitmaps(ctx);
