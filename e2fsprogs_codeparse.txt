@@ -81,9 +81,12 @@ e2fsck_run(ctx)；// 进行5个pass的检查
 			check_directory(ctx, dir->ino, &pctx)
 				while (1) {
 					ext2fs_mark_inode_bitmap2(inode_done_map, ino); // 标记这个inode已经处理过
-					e2fsck_dir_info_get_parent(ctx, ino, &parent); // 获得这个inode节点的parent
+					e2fsck_dir_info_get_parent(ctx, ino, &parent); // 获得这个inode节点的parent,如果便利到根节点就跳出
 					if (!parent || ext2fs_test_inode_bitmap2(inode_loop_detect,parent)) { // 如果没有父节点或者之前已经出现了第二次
 						e2fsck_reconnect_file(ctx, pctx->ino); // 把这个目录挂在/lost+found目录树下
+					}
+					if (parent_count++ > 2048) { // 如果父节点便利的深度到达2048才会启用inode_loop_detect
+						e2fsck_allocate_inode_bitmap(inode_loop_detect);
 					}
 				}
 				e2fsck_dir_info_get_dotdot(ctx, dir, &pctx->ino2); // 读出上级节点
