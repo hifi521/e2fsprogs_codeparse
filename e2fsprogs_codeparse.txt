@@ -1,112 +1,114 @@
-PRS(argc, argv, &ctx);
-	while (getopt(argc, argv, "panyrcC:B:dE:fvtFVM:b:I:j:P:l:L:N:SsDkz:") != EOF) // 解析入参并给相对应的位赋值
-	profile_init(config_fn, &ctx->profile); // 从/etc/mke2fs.conf中读取属性
-check_mount(ctx);
-	ext2fs_check_if_mounted(ctx->filesystem_name,&ctx->mount_flags); // 判断入参的blockdev是否被挂载
-	ask_yn(ctx, _("Do you really want to continue"), 0); // 如果blockdev被挂载,询问是否继续进行e2fsck
-io_ptr = unix_io_manager; // 其中包含了对块设备的读写函数
-try_open_fs(ctx, flags, io_ptr, &fs);
-	ext2fs_open2(ctx->filesystem_name);
-		manager->open();
-		io_channel_read_blk(fs->io, superblock, -SUPERBLOCK_SIZE,fs->super); // 读出超级块信息
-			manager->read_blk();
-		ext2fs_superblock_csum_verify(fs, fs->super); // 对超级块进行超级块csum校验，并和sb中的s_checksum进行对比
-			calculated = ext2fs_superblock_csum(); // 计算出sb的csum的值
-			return ext2fs_le32_to_cpu(sb->s_checksum) == calculated; // 对比sb中的csum的值和计算出的值
-		EXT2_BLOCK_SIZE(fs->super);
-		EXT2_INODE_SIZE(fs->super);
-		fs->priv_data = ctx;
-get_backup_sb(); // 读出备用sb位置
-	try_open_fs();
-e2fsck_check_ext3_journal(ctx); // 日志检测
-if (ext2fs_has_feature_journal_needs_recovery(sb)) // 判断是否需要日志恢复
-	e2fsck_run_ext3_journal(ctx); // 日志恢复
-		recover_ext3_journal(ctx);
-			e2fsck_get_journal();
-			e2fsck_journal_load();
-			journal_recover(); // 重放日志
-	goto restart; // 返回try_open_fs()
-ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，把sb置脏
-check_super_block(ctx); // 检查sb
-check_if_skip(ctx); // 判断是否要跳过后面的pass阶段
-e2fsck_run(ctx)；// 进行5个pass的检查
-	for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
-		e2fsck_pass(ctx);
-	e2fsck_pass1：
-		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_used_map); // 创建inode_bit_map记录inode_used_map
-		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_dir_map); // 创建inode_bit_map记录inode_dir_map
-		e2fsck_allocate_inode_bitmap(fs,&ctx->inode_reg_map); // 创建inode_bit_map记录inode_reg_map
-		ext2fs_open_inode_scan(fs, ctx->inode_buffer_blocks,&scan); // 初始化scan的值用于后面便利整个文件系统的inode
-		while (1) {
-			ext2fs_get_next_inode_full(scan, &ino,inode, inode_size); // 便利整个文件系统读出下一个inode，放在inode指针中
-			/****
-			* 上面函数将便利到的下一个inode保存inode中，如果失败将返回错误，并将对应的inode_bb_map置一
-			* 接下来对每个inode进行mode字段进行检测合法性,进行简单修复，例如：
-			*	硬链接为0，删除时间为0，则修复删除时间为现在；
-			* 	硬链接不为0，删除时间不为0，则修复删除时间为0；
-			* 并把已经使用的inode保存再inode_used_map中
-			****/
-			mark_inode_bad(); // 如果遇到复杂错误的inode_table则将他记录在inode_bad_map中
-			check_blocks(); // 在每个inode上调用这个函数，以解释这个inode使用过的所有块
-				check_blocks_extents();
-					scan_extent_node();
-						mark_blocks_used();
-							mark_block_used();
-								ext2fs_fast_mark_block_bitmap2(ctx->block_dup_map, block); // 将被重复索引的块在block_dup_map中的对应位置一
-			if (ctx->block_dup_map) { // 如果被多个个inode使用的位图非空
-				e2fsck_pass1_dupblocks(); // 调用处理重复块的主程序
-					pass1b(); // 扫描所有inode的数据块，生成一个完整的记录被重复使用的block和与之对应的inode的链表。
-					pass1c(); // 扫描整个文件系统的目录树结构，确定这些inode的父目录。
-					pass1d(); // 修复阶段
-						// 根据extended_opts传入的扩展选项判断是拷贝还是删除block
-						clone_file();
-							clone_file_block();
-						delete_file();
-							delete_file_block();
-		}
-	e2fsck_pass1e：
-	e2fsck_pass2：
-		ext2fs_dblist_iterate2(check_dir_block, &cd);
-			check_dir_block();
-				do {
-					e2fsck_process_bad_inode(); // 如果这个inode在inode_bit_map中被置一，则处理这个badinode
-					ext2fs_get_rec_len(fs, dirent, &rec_len); // 获得这个ext2_dir_entry结构体的长度
-					offset += rec_len；
-				while (offset < max_block_size); // 便利这一个dirblock中的所有文件
-	e2fsck_pass3：
-		e2fsck_allocate_inode_bitmap(&inode_done_map); // 创建一个inode_done_map用来记录哪些节点已经被检测
-		check_root(ctx); // 检查根节点,如果没有就创建一个
-		ext2fs_mark_inode_bitmap2(inode_done_map, EXT2_ROOT_INO); // 标记根节点为done状态
-		while ((dir = e2fsck_dir_info_iter(ctx, iter)) != 0) { // 具体如何迭代
-			check_directory(ctx, dir->ino, &pctx)
-				while (1) {
-					ext2fs_mark_inode_bitmap2(inode_done_map, ino); // 标记这个inode已经处理过
-					e2fsck_dir_info_get_parent(ctx, ino, &parent); // 获得这个inode节点的parent,如果便利到根节点就跳出
-					if (!parent || ext2fs_test_inode_bitmap2(inode_loop_detect,parent)) { // 如果没有父节点或者之前已经出现了第二次
-						e2fsck_reconnect_file(ctx, pctx->ino); // 把这个目录挂在/lost+found目录树下
-					}
-					if (parent_count++ > 2048) { // 如果父节点便利的深度到达2048才会启用inode_loop_detect
-						e2fsck_allocate_inode_bitmap(inode_loop_detect);
-					}
-				}
-				e2fsck_dir_info_get_dotdot(ctx, dir, &pctx->ino2); // 读出上级节点
-				e2fsck_dir_info_get_parent(ctx, dir, &pctx->dir); // 读出父节点
-				if (pctx->ino2 != pctx->dir) { // 如果两个节点不一样进行处理
-					if (fix_problem(ctx, PR_3_BAD_DOT_DOT, pctx))
-						fix_dotdot(ctx, dir, pctx->dir);
-				}
-		}
-	e2fsck_pass4：
-		for (i=1;i<=super->s_inodes_count;i++) { // 扫描所有的inode
-			ext2fs_icount_fetch(ctx->inode_count, i, &link_counted);
-			if (link_counted == 0) {
-				disconnect_inode(ctx, i, inode);
-					e2fsck_reconnect_file(ctx, i);
-						ext2fs_link(fs, ctx->lost_and_found, name,ino, file_type); // 把硬链接为0的文件挂在/lost+found目录树下
+main() {
+	PRS(argc, argv, &ctx);
+		while (getopt(argc, argv, "panyrcC:B:dE:fvtFVM:b:I:j:P:l:L:N:SsDkz:") != EOF) // 解析入参并给相对应的位赋值
+		profile_init(config_fn, &ctx->profile); // 从/etc/mke2fs.conf中读取属性
+	check_mount(ctx);
+		ext2fs_check_if_mounted(ctx->filesystem_name,&ctx->mount_flags); // 判断入参的blockdev是否被挂载
+		ask_yn(ctx, _("Do you really want to continue"), 0); // 如果blockdev被挂载,询问是否继续进行e2fsck
+	io_ptr = unix_io_manager; // 其中包含了对块设备的读写函数
+	try_open_fs(ctx, flags, io_ptr, &fs);
+		ext2fs_open2(ctx->filesystem_name);
+			manager->open();
+			io_channel_read_blk(fs->io, superblock, -SUPERBLOCK_SIZE,fs->super); // 读出超级块信息
+				manager->read_blk();
+			ext2fs_superblock_csum_verify(fs, fs->super); // 对超级块进行超级块csum校验，并和sb中的s_checksum进行对比
+				calculated = ext2fs_superblock_csum(); // 计算出sb的csum的值
+				return ext2fs_le32_to_cpu(sb->s_checksum) == calculated; // 对比sb中的csum的值和计算出的值
+			EXT2_BLOCK_SIZE(fs->super);
+			EXT2_INODE_SIZE(fs->super);
+			fs->priv_data = ctx;
+	get_backup_sb(); // 读出备用sb位置
+		try_open_fs();
+	e2fsck_check_ext3_journal(ctx); // 日志检测
+	if (ext2fs_has_feature_journal_needs_recovery(sb)) // 判断是否需要日志恢复
+		e2fsck_run_ext3_journal(ctx); // 日志恢复
+			recover_ext3_journal(ctx);
+				e2fsck_get_journal();
+				e2fsck_journal_load();
+				journal_recover(); // 重放日志
+		goto restart; // 返回try_open_fs()
+	ext2fs_mark_super_dirty(fs); // 如果用户指定了一个sb的话，就默认sb已经坏了，把sb置脏
+	check_super_block(ctx); // 检查sb
+	check_if_skip(ctx); // 判断是否要跳过后面的pass阶段
+	e2fsck_run(ctx)；// 进行5个pass的检查
+		for (i=0; (e2fsck_pass = e2fsck_passes[i]); i++) // e2fsck_passes[]为包含了五个pass阶段的数组
+			e2fsck_pass(ctx);
+		e2fsck_pass1：
+			e2fsck_allocate_inode_bitmap(fs,&ctx->inode_used_map); // 创建inode_bit_map记录inode_used_map
+			e2fsck_allocate_inode_bitmap(fs,&ctx->inode_dir_map); // 创建inode_bit_map记录inode_dir_map
+			e2fsck_allocate_inode_bitmap(fs,&ctx->inode_reg_map); // 创建inode_bit_map记录inode_reg_map
+			ext2fs_open_inode_scan(fs, ctx->inode_buffer_blocks,&scan); // 初始化scan的值用于后面便利整个文件系统的inode
+			while (1) {
+				ext2fs_get_next_inode_full(scan, &ino,inode, inode_size); // 便利整个文件系统读出下一个inode，放在inode指针中
+				/****
+				* 上面函数将便利到的下一个inode保存inode中，如果失败将返回错误，并将对应的inode_bb_map置一
+				* 接下来对每个inode进行mode字段进行检测合法性,进行简单修复，例如：
+				*	硬链接为0，删除时间为0，则修复删除时间为现在；
+				* 	硬链接不为0，删除时间不为0，则修复删除时间为0；
+				* 并把已经使用的inode保存再inode_used_map中
+				****/
+				mark_inode_bad(); // 如果遇到复杂错误的inode_table则将他记录在inode_bad_map中
+				check_blocks(); // 在每个inode上调用这个函数，以解释这个inode使用过的所有块
+					check_blocks_extents();
+						scan_extent_node();
+							mark_blocks_used();
+								mark_block_used();
+									ext2fs_fast_mark_block_bitmap2(ctx->block_dup_map, block); // 将被重复索引的块在block_dup_map中的对应位置一
+				if (ctx->block_dup_map) { // 如果被多个个inode使用的位图非空
+					e2fsck_pass1_dupblocks(); // 调用处理重复块的主程序
+						pass1b(); // 扫描所有inode的数据块，生成一个完整的记录被重复使用的block和与之对应的inode的链表。
+						pass1c(); // 扫描整个文件系统的目录树结构，确定这些inode的父目录。
+						pass1d(); // 修复阶段
+							// 根据extended_opts传入的扩展选项判断是拷贝还是删除block
+							clone_file();
+								clone_file_block();
+							delete_file();
+								delete_file_block();
 			}
-		}
-	e2fsck_pass5：
-		check_block_bitmaps(ctx); // 使用pass1便利生成的inode_bit_map来校验文件系统中的inode_bit_map
-		check_inode_bitmaps(ctx);
-if (fs->flags & EXT2_FLAG_DIRTY)
-	ext2fs_flush(ctx->fs); // 数据落盘
+		e2fsck_pass1e：
+		e2fsck_pass2：
+			ext2fs_dblist_iterate2(check_dir_block, &cd);
+				check_dir_block();
+					do {
+						e2fsck_process_bad_inode(); // 如果这个inode在inode_bit_map中被置一，则处理这个badinode
+						ext2fs_get_rec_len(fs, dirent, &rec_len); // 获得这个ext2_dir_entry结构体的长度
+						offset += rec_len；
+					while (offset < max_block_size); // 便利这一个dirblock中的所有文件
+		e2fsck_pass3：
+			e2fsck_allocate_inode_bitmap(&inode_done_map); // 创建一个inode_done_map用来记录哪些节点已经被检测
+			check_root(ctx); // 检查根节点,如果没有就创建一个
+			ext2fs_mark_inode_bitmap2(inode_done_map, EXT2_ROOT_INO); // 标记根节点为done状态
+			while ((dir = e2fsck_dir_info_iter(ctx, iter)) != 0) { // 具体如何迭代
+				check_directory(ctx, dir->ino, &pctx)
+					while (1) {
+						ext2fs_mark_inode_bitmap2(inode_done_map, ino); // 标记这个inode已经处理过
+						e2fsck_dir_info_get_parent(ctx, ino, &parent); // 获得这个inode节点的parent,如果便利到根节点就跳出
+						if (!parent || ext2fs_test_inode_bitmap2(inode_loop_detect,parent)) { // 如果没有父节点或者之前已经出现了第二次
+							e2fsck_reconnect_file(ctx, pctx->ino); // 把这个目录挂在/lost+found目录树下
+						}
+						if (parent_count++ > 2048) { // 如果父节点便利的深度到达2048才会启用inode_loop_detect
+							e2fsck_allocate_inode_bitmap(inode_loop_detect);
+						}
+					}
+					e2fsck_dir_info_get_dotdot(ctx, dir, &pctx->ino2); // 读出上级节点
+					e2fsck_dir_info_get_parent(ctx, dir, &pctx->dir); // 读出父节点
+					if (pctx->ino2 != pctx->dir) { // 如果两个节点不一样进行处理
+						if (fix_problem(ctx, PR_3_BAD_DOT_DOT, pctx))
+							fix_dotdot(ctx, dir, pctx->dir);
+					}
+			}
+		e2fsck_pass4：
+			for (i=1;i<=super->s_inodes_count;i++) { // 扫描所有的inode
+				ext2fs_icount_fetch(ctx->inode_count, i, &link_counted);
+				if (link_counted == 0) {
+					disconnect_inode(ctx, i, inode);
+						e2fsck_reconnect_file(ctx, i);
+							ext2fs_link(fs, ctx->lost_and_found, name,ino, file_type); // 把硬链接为0的文件挂在/lost+found目录树下
+				}
+			}
+		e2fsck_pass5：
+			check_block_bitmaps(ctx); // 使用pass1便利生成的inode_bit_map来校验文件系统中的inode_bit_map
+			check_inode_bitmaps(ctx);
+	if (fs->flags & EXT2_FLAG_DIRTY)
+		ext2fs_flush(ctx->fs); // 数据落盘
+}
